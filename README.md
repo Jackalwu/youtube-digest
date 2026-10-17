@@ -2,6 +2,8 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+> This is a personal fork of `zarazhangrui/youtube-digest`. It fixes prompt loading on Windows and replaces the single fixed provider with a free-model picker across OpenRouter, a local Hermes proxy, and Kilo Gateway. Every change is listed in [CHANGES.md](CHANGES.md). Upstream does not accept pull requests, so these changes live here only.
+
 Turn every YouTube video into a resource for deep learning. YouTube Digest brings transcripts, bilingual translation, AI overviews, explanations, and timestamped notes into one Chrome side panel, so you can study ideas and language without losing your place.
 
 - Turn captions into a readable, searchable learning resource.

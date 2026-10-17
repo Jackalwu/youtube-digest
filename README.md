@@ -32,7 +32,7 @@ You do not need to understand the code or use the command line. Send this messag
 Your agent should:
 
 1. Ask where you want to keep the project, download or clone it there, and tell you the exact full path. If you want a suggestion, it can offer `~/Documents/youtube-digest` on macOS or Linux, or `%USERPROFILE%\Documents\youtube-digest` on Windows.
-2. Open the official Supadata and DeepSeek pages below and help you create your own accounts.
+2. Open the official Supadata and OpenRouter pages below and help you create your own accounts.
 3. Walk you through selecting the exact project folder you chose in Chrome with **Load unpacked**.
 4. Show you where to enter your API keys in the extension's **Settings** page.
 5. Open a YouTube video with captions and confirm the transcript and translation work.
@@ -61,7 +61,7 @@ Because this is an unpacked extension, it does not update automatically. After d
 YouTube Digest needs two keys under your own provider accounts:
 
 1. A **Supadata API key** to retrieve YouTube transcripts.
-2. A **DeepSeek API key** for overviews, explanations, translation, and automatic note polishing.
+2. One **AI provider** for overviews, explanations, translation, and automatic note polishing: OpenRouter (needs a key), the local Hermes proxy (no key), or Kilo Gateway (optional key).
 
 ### Get a Supadata API key
 
@@ -73,27 +73,46 @@ YouTube Digest needs two keys under your own provider accounts:
 
 See the [official Supadata documentation](https://docs.supadata.ai/) if the dashboard flow changes.
 
-### Get a DeepSeek API key
+### Get an OpenRouter API key
 
-1. Open the official [DeepSeek API Keys page](https://platform.deepseek.com/api_keys).
-2. Sign in or create a DeepSeek Platform account when prompted.
-3. Choose **Create new API key**, give it a recognizable name such as `YouTube Digest`, and create it.
+1. Open the official [OpenRouter keys page](https://openrouter.ai/api_keys).
+2. Sign in or create an OpenRouter account when prompted.
+3. Choose **Create key**, give it a recognizable name such as `YouTube Digest`, and create it.
 4. Copy the key immediately. The full key may only be shown once.
-5. Paste it into **DeepSeek API key** in YouTube Digest Settings.
-6. If DeepSeek reports insufficient balance, add credit in your DeepSeek Platform account and try again.
+5. Paste it into **OpenRouter API key** in YouTube Digest Settings.
+6. If OpenRouter reports a rate limit, wait for the limit to reset and try again.
 
-See the [official DeepSeek API documentation](https://api-docs.deepseek.com/) for current account and API details.
+See the [OpenRouter documentation](https://openrouter.ai/docs) for current account and API details.
+
+### Use the Hermes proxy instead (no key)
+
+If Hermes Agent is installed on the same machine, its local proxy exposes the free models from your Nous Portal account:
+
+```bash
+hermes proxy start
+```
+
+The proxy listens on `127.0.0.1:8645` and attaches your Portal credentials itself, so this provider needs no key. Keep the proxy running while you use AI features; the extension reports the connection error if it is not.
+
+### Use Kilo Gateway instead (optional key)
+
+Kilo's free models answer without a key today. If that path closes, create a key at [app.kilo.ai/profile](https://app.kilo.ai/profile) and paste it into **Kilo API key**.
 
 Open **Settings** from the side panel. You can also open the YouTube Digest **Options** page from its card at `chrome://extensions` or by right-clicking its toolbar icon. Paste keys only into these Settings fields. Never paste a key into an AI chat, repository file, screenshot, or public message.
 
-The published version supports DeepSeek V4 Flash as its only AI provider:
+The published version supports three AI providers, and lists only their free models:
 
-```text
-Base URL: https://api.deepseek.com
-Model: deepseek-v4-flash
-```
+| Provider | Key | What you get |
+| --- | --- | --- |
+| **OpenRouter** | required | `openrouter/free`, a router over the free models OpenRouter currently offers |
+| **Hermes proxy (Nous Portal)** | none | the free models your local `hermes proxy` exposes; the proxy holds your Portal credentials |
+| **Kilo Gateway** | optional | `kilo-auto/free` plus Kilo's free line-up; anonymous requests work today |
 
-YouTube Digest sends every DeepSeek request in non-thinking mode for responsive, predictable interactions. The endpoint and model are fixed in Settings, so the only AI credential you enter is your DeepSeek API key. To use another provider or model, copy the safe customization prompt in Settings and give it to a coding agent for your local copy. Never add an API key to that prompt or chat.
+Settings reads each provider's model list, keeps only models priced at zero, and drops entries that cannot produce text (a music generator is not a translator). The list refreshes every ten minutes, whenever you open Settings, and when you press **Refresh**.
+
+Pick **Auto** to use the provider's own router, or pick a specific free model. When a model answers `429` (rate limited) or `404` (retired), Settings marks it and the request falls back to another free model instead of failing.
+
+For OpenRouter, `openrouter/free` costs nothing per token because OpenRouter routes each request to one of its free models, so the model behind the name changes over time. The endpoint and model list are fixed in code, so the only credential you enter is your provider key. To use another provider or model, copy the safe customization prompt in Settings and give it to a coding agent for your local copy. Never add an API key to that prompt or chat.
 
 Keys and settings are stored in Chrome's local extension storage on your device. Release builds do not include or use `config.js`.
 
@@ -114,7 +133,7 @@ Keys and settings are stored in Chrome's local extension storage on your device.
 - Original, Simplified Chinese, and aligned bilingual transcript views.
 - AI overviews, selected-text explanations, translation, and automatic note polishing.
 - Local notes and a local cache for recent transcript and digest results.
-- DeepSeek V4 Flash for all published AI features. Other providers require a local code adaptation and are not supported by this published version.
+- Free models from OpenRouter, the local Hermes proxy, or Kilo Gateway for all published AI features. Any other provider requires a local code adaptation.
 
 Shorts, live streams, private or access-restricted videos, and videos without an available native transcript may not work. Firefox, Safari, mobile browsers, and other Chromium browsers are not currently tested or supported.
 
@@ -132,26 +151,13 @@ The [Supadata transcript documentation](https://docs.supadata.ai/get-transcript)
 
 With the current native-only behavior, the free tier can cover roughly 100 transcript lookups per month when each request succeeds once. Retries and unavailable-caption lookups also consume credits, so actual successful-video coverage can be lower.
 
-DeepSeek usage is separate from Supadata. YouTube Digest does not collect payments or resell access. Set spending limits and monitor both accounts.
+OpenRouter usage is separate from Supadata. YouTube Digest does not collect payments or resell access. Check the current OpenRouter limits and monitor both accounts.
 
-## DeepSeek V4 Flash pricing
+## Free AI models
 
-As of August 27, 2026, DeepSeek lists these USD prices per 1 million tokens on its official [pricing page](https://api-docs.deepseek.com/quick_start/pricing/):
+Every listed model is priced at zero by its provider, so the AI features cost nothing beyond the transcript service. Free line-ups change without notice and free requests are rate-limited, so a model can fail today and work later. Settings marks a model that just answered `429` or `404` and falls back to another free model.
 
-| Token type | Off-peak | Peak |
-| --- | ---: | ---: |
-| Cache-hit input | $0.007 | $0.014 |
-| Cache-miss input | $0.22 | $0.44 |
-| Output | $0.66 | $1.32 |
-
-Peak hours are 01:00–04:00 and 06:00–10:00 UTC, Monday through Friday. All other hours use off-peak rates.
-
-A measured 20-minute English talk used about **32,600 input tokens** and an estimated **3,500 to 4,500 output tokens** across 43 small translation batches. At current prices, translating the full video costs approximately:
-
-- **Off-peak: $0.003 to $0.010 USD**.
-- **Peak: $0.005 to $0.020 USD**.
-
-The lower end assumes most repeated input hits DeepSeek's cache. The upper end assumes cache misses. Translation is lazy and cached, so translating only part of a video costs less. Check the official page before relying on these prices.
+YouTube Digest does not collect payments or resell access. Check the provider's own documentation for current free-tier limits and model availability.
 
 ## Remix it with your coding agent
 
@@ -176,11 +182,11 @@ If you want another AI provider or model, first open the exact YouTube Digest pr
 YouTube Digest makes provider requests directly from the extension:
 
 1. It sends a canonical YouTube watch URL to Supadata to request the native transcript.
-2. It sends the transcript and relevant video metadata to DeepSeek when you request AI features.
+2. It sends the transcript and relevant video metadata to OpenRouter when you request AI features.
 3. Focused features send only the content they need, such as selected text with context or small transcript batches for translation.
 4. It stores keys, settings, notes, and recent cache entries locally in Chrome.
 
-There is no YouTube Digest account system, advertising, analytics, or telemetry. Supadata and DeepSeek still receive data under their own terms and privacy policies. See [PRIVACY.md](PRIVACY.md) for details.
+There is no YouTube Digest account system, advertising, analytics, or telemetry. Supadata and OpenRouter still receive data under their own terms and privacy policies. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Troubleshooting
 
@@ -201,9 +207,9 @@ There is no YouTube Digest account system, advertising, analytics, or telemetry.
 
 ### YouTube Digest asks for setup
 
-- Open **Settings** and save both a Supadata key and a DeepSeek key.
-- This published version uses the fixed DeepSeek V4 Flash endpoint and model. There are no Base URL or Model fields to configure.
-- If Settings says a legacy custom provider was removed, enter a DeepSeek key. The old AI key was cleared so it could not be reused with the wrong service.
+- Open **Settings** and save both a Supadata key and an OpenRouter key.
+- This published version uses the fixed OpenRouter endpoint and the `openrouter/free` model. There are no Base URL or Model fields to configure.
+- If Settings says a legacy custom provider was removed, enter an OpenRouter key. The old AI key was cleared so it could not be reused with the wrong service.
 
 ### No transcript is found
 
@@ -215,9 +221,9 @@ YouTube Digest will not fall back to generated transcription.
 
 ### AI requests fail
 
-- A `401` or `403` usually means the DeepSeek key or account access is invalid.
-- A `429` usually means a DeepSeek rate or spending limit was reached.
-- Confirm the key was created in the DeepSeek Platform account linked above and that the account has available credit.
+- A `401` or `403` usually means the provider key is invalid or was revoked. The Hermes proxy path returns `401` when `hermes proxy start` is not running or its Portal session expired.
+- A `429` usually means a free-tier rate limit was reached. Wait for it to reset and retry.
+- Confirm the key was created on the account for the provider selected in Settings.
 - If you adapted a local copy for another model, use the Settings customization prompt again and ask your coding agent to inspect that local implementation.
 
 Never share API keys, private transcripts, or personal notes in chats, screenshots, or logs.

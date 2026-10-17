@@ -8,7 +8,9 @@
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://api.supadata.ai/*",
-    "https://api.deepseek.com/*"
+    "https://openrouter.ai/*",
+    "https://api.kilo.ai/*",
+    "http://127.0.0.1:8645/*"
   ],
   "action": {
     "default_title": "Open YouTube Digest",

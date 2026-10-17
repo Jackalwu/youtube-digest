@@ -9,7 +9,7 @@ const YTD_OPTIONS = (() => {
       languageGroupLabel: "Interface language",
       heading: "Bring your own API keys",
       lede:
-        "Keys stay in this Chrome profile and are sent only to Supadata and DeepSeek. This open-source extension has no developer server or analytics.",
+        "Keys stay in this Chrome profile and are sent only to Supadata and OpenRouter. This open-source extension has no developer server or analytics.",
       transcriptProvider: "Transcript provider",
       supadataApiKeyLabel: "Supadata API key",
       supadataHelp: "Used to fetch timestamped YouTube subtitles. ",
@@ -17,15 +17,36 @@ const YTD_OPTIONS = (() => {
       supadataHelpSuffix:
         ". Supadata generates the key during onboarding.",
       aiProvider: "AI provider",
-      providerSummaryLabel: "Supported AI provider",
-      providerBadge: "Supported in this version",
-      deepseekApiKeyLabel: "DeepSeek API key",
-      deepseekHelp:
-        "YouTube Digest uses DeepSeek V4 Flash for overviews, explanations, translation, and note polishing. ",
-      deepseekLink: "Create a DeepSeek API key",
-      deepseekHelpSuffix: ".",
+      aiProviderLabel: "Provider",
+      aiModelLabel: "Free model",
+      refreshModels: "Refresh",
+      aiApiKeyLabel: "OpenRouter API key",
+      kiloApiKeyLabel: "Kilo API key (optional)",
+      aiHelp:
+        "Used for overviews, explanations, translation, and note polishing. ",
+      aiKeyLink: "Create an OpenRouter API key",
+      aiHelpSuffix: ".",
+      kiloHelp: "Leave this empty to use the anonymous free path. ",
+      kiloKeyLink: "Create a Kilo key",
+      kiloHelpSuffix: ".",
+      providerNoteOpenrouter:
+        "Free models on OpenRouter. A key is required. The free line-up and its rate limits change over time.",
+      providerNoteHermes:
+        "Reads the free models your local Hermes proxy exposes. Start it with `hermes proxy start` first. No key is needed here because the proxy holds your Nous Portal credentials.",
+      providerNoteKilo:
+        "Free models on Kilo Gateway. Anonymous requests work today. Add a key to keep the path stable.",
+      modelStatusLoading: "Loading free models...",
+      modelStatusSummary: ({ count, time }) =>
+        `${count} free model${count === 1 ? "" : "s"}, updated ${time}`,
+      modelStatusStale: ({ error }) =>
+        `Showing a cached list. Refresh failed: ${error}`,
+      modelStatusError: ({ error }) => `Could not load free models: ${error}`,
+      modelStatusEmpty: "No free model is available right now.",
+      modelAutoOption: ({ model }) => `Auto (${model})`,
+      modelRateLimited: "rate-limited",
+      modelUnavailable: "unavailable",
       privacyNote:
-        "When you use AI features, DeepSeek receives the video transcript and relevant video context. Review DeepSeek's terms and pricing before saving.",
+        "When you use AI features, OpenRouter receives the video transcript and relevant video context. Review OpenRouter's terms and pricing before saving.",
       saveSettings: "Save settings",
       localRemix: "Local remix",
       customizationTitle: "Want to use another AI model?",
@@ -55,10 +76,10 @@ const YTD_OPTIONS = (() => {
       footer:
         'Read <a href="PRIVACY.md" target="_blank">PRIVACY.md</a> in the repository for the complete data-flow description.',
       migrationWarning:
-        "Custom provider settings were removed safely. Your Supadata key was kept, but the AI key was cleared. Enter a DeepSeek API key to continue.",
+        "Custom provider settings were removed safely. Your Supadata key was kept, but the AI key was cleared. Enter an OpenRouter API key to continue.",
       saving: "Saving…",
       addSupadataKey: "Add a Supadata API key.",
-      addDeepseekKey: "Add a DeepSeek API key.",
+      addAiKey: "Add an OpenRouter API key.",
       saved: "Saved. Reopen YouTube Digest to use these settings.",
       saveFailed: "Could not save settings. Please try again.",
       copying: "Copying…",
@@ -79,22 +100,41 @@ const YTD_OPTIONS = (() => {
       languageGroupLabel: "界面语言",
       heading: "使用你自己的 API 密钥",
       lede:
-        "密钥仅保存在当前 Chrome 个人资料中，只会发送给 Supadata 和 DeepSeek。本开源扩展没有开发者服务器，也不使用分析服务。",
+        "密钥仅保存在当前 Chrome 个人资料中，只会发送给 Supadata 和 OpenRouter。本开源扩展没有开发者服务器，也不使用分析服务。",
       transcriptProvider: "字幕服务",
       supadataApiKeyLabel: "Supadata API 密钥",
       supadataHelp: "用于获取带时间戳的 YouTube 字幕。",
       supadataLink: "创建 Supadata 账号并获取密钥",
       supadataHelpSuffix: "。Supadata 会在引导流程中生成密钥。",
       aiProvider: "AI 服务",
-      providerSummaryLabel: "支持的 AI 服务",
-      providerBadge: "当前版本支持",
-      deepseekApiKeyLabel: "DeepSeek API 密钥",
-      deepseekHelp:
-        "YouTube Digest 使用 DeepSeek V4 Flash 生成概览、解释内容、翻译字幕和润色笔记。",
-      deepseekLink: "创建 DeepSeek API 密钥",
-      deepseekHelpSuffix: "。",
+      aiProviderLabel: "服务商",
+      aiModelLabel: "免费模型",
+      refreshModels: "刷新",
+      aiApiKeyLabel: "OpenRouter API 密钥",
+      kiloApiKeyLabel: "Kilo API 密钥（可选）",
+      aiHelp: "用于生成概览、解释内容、翻译字幕和润色笔记。",
+      aiKeyLink: "创建 OpenRouter API 密钥",
+      aiHelpSuffix: "。",
+      kiloHelp: "留空即使用匿名免费通道。",
+      kiloKeyLink: "创建 Kilo 密钥",
+      kiloHelpSuffix: "。",
+      providerNoteOpenrouter:
+        "使用 OpenRouter 的免费模型。需要密钥。免费阵容和限流规则会随时间变化。",
+      providerNoteHermes:
+        "读取本地 Hermes 代理提供的免费模型。请先运行 `hermes proxy start`。这里不需要密钥，凭证由代理持有。",
+      providerNoteKilo:
+        "使用 Kilo Gateway 的免费模型。目前匿名请求可用；填入密钥会更稳定。",
+      modelStatusLoading: "正在获取免费模型...",
+      modelStatusSummary: ({ count, time }) =>
+        `${count} 个免费模型，更新于 ${time}`,
+      modelStatusStale: ({ error }) => `显示的是缓存列表。刷新失败：${error}`,
+      modelStatusError: ({ error }) => `无法获取免费模型：${error}`,
+      modelStatusEmpty: "当前没有可用的免费模型。",
+      modelAutoOption: ({ model }) => `自动（${model}）`,
+      modelRateLimited: "限流中",
+      modelUnavailable: "不可用",
       privacyNote:
-        "使用 AI 功能时，DeepSeek 会收到视频字幕及相关视频上下文。保存前请查看 DeepSeek 的服务条款和价格。",
+        "使用 AI 功能时，OpenRouter 会收到视频字幕及相关视频上下文。保存前请查看 OpenRouter 的服务条款和价格。",
       saveSettings: "保存设置",
       localRemix: "本地改造",
       customizationTitle: "想使用其他 AI 模型？",
@@ -123,10 +163,10 @@ const YTD_OPTIONS = (() => {
       footer:
         '完整数据流说明请参阅仓库中的 <a href="PRIVACY.md" target="_blank">PRIVACY.md</a>。',
       migrationWarning:
-        "已安全移除自定义服务设置。Supadata 密钥已保留，AI 密钥已清除。请输入 DeepSeek API 密钥以继续使用。",
+        "已安全移除自定义服务设置。Supadata 密钥已保留，AI 密钥已清除。请输入 OpenRouter API 密钥以继续使用。",
       saving: "正在保存…",
       addSupadataKey: "请添加 Supadata API 密钥。",
-      addDeepseekKey: "请添加 DeepSeek API 密钥。",
+      addAiKey: "请添加 OpenRouter API 密钥。",
       saved: "已保存。请重新打开 YouTube Digest 以使用这些设置。",
       saveFailed: "无法保存设置，请重试。",
       copying: "正在复制…",
@@ -349,6 +389,14 @@ const YTD_OPTIONS = (() => {
     );
     const form = doc.getElementById("settingsForm");
     const aiApiKeyInput = doc.getElementById("aiApiKey");
+    const kiloApiKeyInput = doc.getElementById("kiloApiKey");
+    const aiProviderSelect = doc.getElementById("aiProvider");
+    const aiModelSelect = doc.getElementById("aiModel");
+    const refreshModelsBtn = doc.getElementById("refreshModels");
+    const modelStatus = doc.getElementById("modelStatus");
+    const providerNote = doc.getElementById("providerNote");
+    const openrouterKeyRow = doc.getElementById("openrouterKeyRow");
+    const kiloKeyRow = doc.getElementById("kiloKeyRow");
     const supadataApiKeyInput = doc.getElementById("supadataApiKey");
     const customizationPrompt = doc.getElementById("customizationPrompt");
     const copyCustomizationPromptBtn = doc.getElementById(
@@ -360,7 +408,109 @@ const YTD_OPTIONS = (() => {
     const languageButtons = [...doc.querySelectorAll("[data-language]")];
     const statusStates = new Map();
     const promptDrafts = createPromptDrafts();
+    const modelsApi = root.YTD_MODELS;
     let currentLanguage = "en";
+    let currentSettings = settingsApi.normalize({});
+    let lastModels = [];
+    let lastStatuses = {};
+
+    function providerNoteKey(providerId) {
+      if (providerId === "hermes") return "providerNoteHermes";
+      if (providerId === "kilo") return "providerNoteKilo";
+      return "providerNoteOpenrouter";
+    }
+
+    function formatModelTime(timestamp) {
+      if (!timestamp) return "";
+      return new Date(timestamp).toLocaleTimeString(currentLanguage, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
+    function renderProviderOptions() {
+      aiProviderSelect.textContent = "";
+      for (const id of settingsApi.PROVIDER_IDS) {
+        const option = doc.createElement("option");
+        option.value = id;
+        option.textContent = settingsApi.providerLabel(id);
+        aiProviderSelect.append(option);
+      }
+    }
+
+    function renderModelOptions(models, statuses) {
+      if (!aiModelSelect) return;
+      aiModelSelect.textContent = "";
+      const auto = doc.createElement("option");
+      auto.value = settingsApi.AUTO_MODEL;
+      auto.textContent = translate(currentLanguage, "modelAutoOption", {
+        model: settingsApi.getProvider(currentSettings).autoModel,
+      });
+      aiModelSelect.append(auto);
+      for (const model of models) {
+        const option = doc.createElement("option");
+        option.value = model.id;
+        const status = statuses[
+          modelsApi.statusKey(currentSettings.provider, model.id)
+        ];
+        let label = model.name === model.id ? model.id : `${model.name} (${model.id})`;
+        if (!model.supportsJson) {
+          label += " · text only";
+        }
+        if (status) {
+          const key =
+            status.reason === "rate-limited"
+              ? "modelRateLimited"
+              : "modelUnavailable";
+          label += ` · ${translate(currentLanguage, key)}`;
+        }
+        option.textContent = label;
+        aiModelSelect.append(option);
+      }
+      const wanted = currentSettings.aiModel;
+      aiModelSelect.value = models.some((model) => model.id === wanted)
+        ? wanted
+        : settingsApi.AUTO_MODEL;
+    }
+
+    function syncProviderUi() {
+      const provider = settingsApi.getProvider(currentSettings);
+      const isKilo = provider.id === "kilo";
+      if (openrouterKeyRow) {
+        openrouterKeyRow.hidden = isKilo || provider.auth === "none";
+      }
+      if (kiloKeyRow) kiloKeyRow.hidden = !isKilo;
+      if (providerNote) {
+        providerNote.textContent = translate(
+          currentLanguage,
+          providerNoteKey(provider.id),
+        );
+      }
+    }
+
+    async function refreshModelList({ force = false } = {}) {
+      if (!modelsApi) return;
+      setStatus(modelStatus, "modelStatusLoading");
+      const [result, statuses] = await Promise.all([
+        modelsApi.getFreeModels(currentSettings, { force }),
+        modelsApi.getStatuses(),
+      ]);
+      lastModels = result.models;
+      lastStatuses = statuses;
+      renderModelOptions(lastModels, lastStatuses);
+      if (result.error && result.models.length === 0) {
+        setStatus(modelStatus, "modelStatusError", { error: result.error });
+      } else if (result.error) {
+        setStatus(modelStatus, "modelStatusStale", { error: result.error });
+      } else if (result.models.length === 0) {
+        setStatus(modelStatus, "modelStatusEmpty");
+      } else {
+        setStatus(modelStatus, "modelStatusSummary", {
+          count: result.models.length,
+          time: formatModelTime(result.fetchedAt),
+        });
+      }
+    }
 
     function renderStatus(element) {
       const state = statusStates.get(element);
@@ -410,6 +560,10 @@ const YTD_OPTIONS = (() => {
       );
       updateLanguageButtonState(languageButtons, currentLanguage);
       for (const element of statusStates.keys()) renderStatus(element);
+      renderProviderOptions();
+      if (aiProviderSelect) aiProviderSelect.value = currentSettings.provider;
+      renderModelOptions(lastModels, lastStatuses);
+      syncProviderUi();
     }
 
     async function loadSettings() {
@@ -419,9 +573,14 @@ const YTD_OPTIONS = (() => {
           stored[settingsApi.STORAGE_KEY],
         );
         const settings = migration.settings;
+        currentSettings = settings;
 
         aiApiKeyInput.value = settings.aiApiKey;
+        if (kiloApiKeyInput) kiloApiKeyInput.value = settings.kiloApiKey;
         supadataApiKeyInput.value = settings.supadataApiKey;
+        if (aiProviderSelect) aiProviderSelect.value = settings.provider;
+        syncProviderUi();
+        await refreshModelList();
         if (migration.migrated) {
           await storage.set({ [settingsApi.STORAGE_KEY]: settings });
           setStatus(saveStatus, "migrationWarning");
@@ -445,16 +604,20 @@ const YTD_OPTIONS = (() => {
       setStatus(saveStatus, "saving");
 
       const settings = settingsApi.normalize({
+        provider: aiProviderSelect ? aiProviderSelect.value : undefined,
+        aiModel: aiModelSelect ? aiModelSelect.value : undefined,
         aiApiKey: aiApiKeyInput.value,
+        kiloApiKey: kiloApiKeyInput ? kiloApiKeyInput.value : "",
         supadataApiKey: supadataApiKeyInput.value,
       });
+      currentSettings = settings;
 
       if (!settings.supadataApiKey) {
         setStatus(saveStatus, "addSupadataKey");
         return;
       }
-      if (!settings.aiApiKey) {
-        setStatus(saveStatus, "addDeepseekKey");
+      if (!settingsApi.hasAiCredentials(settings)) {
+        setStatus(saveStatus, "addAiKey");
         return;
       }
 
@@ -504,6 +667,22 @@ const YTD_OPTIONS = (() => {
     }
 
     form.addEventListener("submit", saveSettings);
+    if (aiProviderSelect) {
+      aiProviderSelect.addEventListener("change", async () => {
+        currentSettings = settingsApi.normalize({
+          ...currentSettings,
+          provider: aiProviderSelect.value,
+          aiModel: settingsApi.AUTO_MODEL,
+        });
+        syncProviderUi();
+        await refreshModelList();
+      });
+    }
+    if (refreshModelsBtn) {
+      refreshModelsBtn.addEventListener("click", () => {
+        void refreshModelList({ force: true });
+      });
+    }
     copyCustomizationPromptBtn.addEventListener(
       "click",
       copyCustomizationPrompt,

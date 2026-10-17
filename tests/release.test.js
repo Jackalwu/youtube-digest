@@ -4,7 +4,13 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+// Normalise line endings: git checks these files out with CRLF on Windows, and
+// the assertions below are written for LF. Without this, every pattern that
+// spans a line boundary fails on a Windows checkout while passing on CI.
+const read = (file) =>
+  fs
+    .readFileSync(path.join(root, file), "utf8")
+    .replace(/\r\n/g, "\n");
 
 test("manifest uses minimized install-time permissions", () => {
   const manifest = JSON.parse(read("manifest.json"));
@@ -15,7 +21,7 @@ test("manifest uses minimized install-time permissions", () => {
   assert.equal(packageJson.version, manifest.version);
   assert.equal(manifest.options_ui.page, "options.html");
   assert.ok(!manifest.permissions.includes("activeTab"));
-  assert.ok(manifest.host_permissions.includes("https://api.deepseek.com/*"));
+  assert.ok(manifest.host_permissions.includes("https://openrouter.ai/*"));
   assert.equal(Object.hasOwn(manifest, "optional_host_permissions"), false);
   assert.equal(manifest.version, "1.2.0");
 });
@@ -94,28 +100,17 @@ test("release copy documents current scope without em dashes", () => {
   assert.match(readme, /supadata\.ai\/pricing/i);
   assert.match(readme, /docs\.supadata\.ai\/get-transcript/i);
   assert.match(readme, /dash\.supadata\.ai\/auth\/sign-up/i);
-  assert.match(readme, /platform\.deepseek\.com\/api_keys/i);
-  assert.match(readme, /api-docs\.deepseek\.com/i);
-  assert.match(readme, /api-docs\.deepseek\.com\/quick_start\/pricing/i);
-  assert.match(readme, /\$0\.007[\s\S]*\$0\.014/);
-  assert.match(readme, /\$0\.22[\s\S]*\$0\.44/);
-  assert.match(readme, /\$0\.66[\s\S]*\$1\.32/);
-  assert.match(readme, /01:00–04:00[\s\S]*06:00–10:00 UTC/);
-  assert.match(readme, /20-minute English talk/i);
-  assert.match(readme, /32,600 input tokens/i);
-  assert.match(readme, /\$0\.003[^\n]*\$0\.010 USD/i);
-  assert.match(readme, /\$0\.005[^\n]*\$0\.020 USD/i);
-  assert.match(chineseReadme, /api-docs\.deepseek\.com\/quick_start\/pricing/i);
-  assert.match(chineseReadme, /\$0\.007[\s\S]*\$0\.014/);
-  assert.match(chineseReadme, /\$0\.22[\s\S]*\$0\.44/);
-  assert.match(chineseReadme, /\$0\.66[\s\S]*\$1\.32/);
-  assert.match(chineseReadme, /UTC 01:00–04:00[\s\S]*06:00–10:00/);
-  assert.match(chineseReadme, /20 \u5206\u949f\u82f1\u6587\u89c6\u9891/);
-  assert.match(chineseReadme, /32,600 \u4e2a\u8f93\u5165 token/);
-  assert.match(chineseReadme, /\$0\.003[^\n]*\$0\.010 USD/);
-  assert.match(chineseReadme, /\$0\.005[^\n]*\$0\.020 USD/);
-  assert.match(chineseReadme, /dash\.supadata\.ai\/auth\/sign-up/i);
-  assert.match(chineseReadme, /platform\.deepseek\.com\/api_keys/i);
+  assert.match(readme, /three AI providers/i);
+  assert.match(readme, /openrouter\.ai\/api_keys/i);
+  assert.match(readme, /openrouter\.ai\/docs/i);
+  assert.match(readme, /hermes proxy start/);
+  assert.match(readme, /app\.kilo\.ai\/profile/);
+  assert.match(readme, /only models priced at zero/i);
+  assert.match(readme, /rate-limited/i);
+  assert.match(chineseReadme, /三个 AI 服务/);
+  assert.match(chineseReadme, /openrouter\.ai\/api_keys/i);
+  assert.match(chineseReadme, /hermes proxy start/);
+  assert.match(chineseReadme, /app\.kilo\.ai\/profile/);
   assert.match(readme, /^### The Digest button is missing on a YouTube video$/m);
   assert.match(
     chineseReadme,
@@ -126,9 +121,12 @@ test("release copy documents current scope without em dashes", () => {
   const optionsStyles = read("options.css");
   const optionsScript = read("options.js");
   assert.match(optionsPage, /dash\.supadata\.ai\/auth\/sign-up/i);
-  assert.match(optionsPage, /platform\.deepseek\.com\/api_keys/i);
-  assert.doesNotMatch(optionsPage, /<select\b/i);
-  assert.doesNotMatch(optionsPage, /id="(?:provider|aiBaseUrl|aiModel)"/);
+  assert.match(optionsPage, /openrouter\.ai\/api_keys/i);
+  // The provider and free-model pickers are the only configuration surface.
+  // Base URLs stay in the registry so a provider cannot be pointed elsewhere.
+  assert.match(optionsPage, /<select id="aiProvider"/);
+  assert.match(optionsPage, /<select id="aiModel"/);
+  assert.doesNotMatch(optionsPage, /id="(?:provider|aiBaseUrl)"/);
   const detailsTag = optionsPage.match(
     /<details\b[^>]*class="card customization-card"[^>]*>/,
   );
@@ -183,8 +181,6 @@ test("release copy documents current scope without em dashes", () => {
   assert.doesNotMatch(publishedDocs, /optional custom-origin/i);
   assert.doesNotMatch(publishedDocs, /chosen AI provider/i);
   assert.doesNotMatch(publishedDocs, /configure a different OpenAI-compatible/i);
-  assert.match(readme, /published version supports DeepSeek V4 Flash as its only AI provider/i);
-  assert.match(chineseReadme, /发布版本只支持 DeepSeek V4 Flash/);
 });
 
 test("product UI contains no emoji or emoji-like pictographs", () => {
@@ -282,7 +278,7 @@ test("runtime has no source-file credential dependency or retired model", () => 
   assert.doesNotMatch(runtime, /\bCONFIG\./);
   assert.doesNotMatch(runtime, /importScripts\(["']config\.js/);
   assert.doesNotMatch(runtime, /\bdeepseek-chat\b/);
-  assert.match(runtime, /deepseek-v4-flash/);
+  assert.match(runtime, /openrouter\/free/);
 });
 
 test("background reconciles side-panel state after navigation commits", () => {

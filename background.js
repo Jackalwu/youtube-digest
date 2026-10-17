@@ -13,7 +13,7 @@
 
 // Import safe defaults and validation helpers. Secret keys live in
 // chrome.storage.local and are never part of the extension source.
-importScripts("settings.js");
+importScripts("settings.js", "models.js");
 
 const DEBUG = false;
 const AI_PROVIDER_IDLE_TIMEOUT_MS = 50_000;
@@ -46,6 +46,12 @@ async function loadPromptSection(fileName, heading, variables = {}) {
       throw new Error(`Could not load prompt file: ${fileName}`);
     }
     markdown = await response.text();
+    // Git checks these files out with CRLF on Windows (core.autocrlf), and the
+    // section parser below is written for LF: `## heading` is found either way,
+    // but the code fence match requires a bare "\n" after the opening ```, so a
+    // CRLF file throws "Prompt section not found" for every section. Normalise
+    // once here instead of making every regex CRLF-aware.
+    markdown = markdown.replace(/\r\n/g, "\n");
     promptFileCache.set(fileName, markdown);
   }
 
@@ -72,31 +78,101 @@ async function loadPromptSection(fileName, heading, variables = {}) {
   return prompt;
 }
 
-async function requestAiCompletion({
-  messages,
-  maxTokens,
-  temperature,
-  responseFormat,
-}) {
+async function requestAiCompletion(options) {
   const settings = await getSettings();
-  if (!settings.aiApiKey) {
+  if (!YTD_SETTINGS.hasAiCredentials(settings)) {
+    const provider = YTD_SETTINGS.getProvider(settings);
     const error = new Error(
-      "DeepSeek API key not configured. Open YouTube Digest Settings.",
+      `${provider.label} API key not configured. Open YouTube Digest Settings.`,
     );
     error.code = "NO_AI_KEY";
     throw error;
   }
+  const chosen = YTD_SETTINGS.resolveModel(settings);
+  const model =
+    chosen === YTD_SETTINGS.AUTO_MODEL
+      ? await resolveAutoModel(settings)
+      : chosen;
+  if (!model) {
+    const error = new Error(
+      "No free model is available for this provider right now. Open YouTube Digest Settings and press Refresh.",
+    );
+    error.code = "NO_FREE_MODEL";
+    throw error;
+  }
+  return requestAiCompletionWith(settings, options, {
+    model,
+    tokenScale: 1,
+    allowFallback: true,
+  });
+}
+
+/**
+ * `auto` means "first free model the provider currently offers". Models already
+ * known to be rate-limited or retired are skipped, otherwise a fallback would
+ * land back on the model that just failed.
+ */
+async function resolveAutoModel(settings, exclude = new Set()) {
+  const provider = YTD_SETTINGS.getProvider(settings);
+  if (provider.autoModel !== YTD_SETTINGS.AUTO_MODEL) return provider.autoModel;
+  const [{ models }, statuses] = await Promise.all([
+    YTD_MODELS.getFreeModels(settings),
+    YTD_MODELS.getStatuses(),
+  ]);
+  const usable = models.find(
+    (model) =>
+      !exclude.has(model.id) &&
+      !statuses[YTD_MODELS.statusKey(provider.id, model.id)],
+  );
+  return usable?.id ?? null;
+}
+
+function retryAfterSeconds(response) {
+  const raw = response?.headers?.get?.("retry-after");
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+}
+
+/**
+ * Decide whether a failed request should be retried on the provider's auto
+ * model. A retired free model (404) or a rate limit (429) is recorded so the
+ * Settings picker can mark it.
+ */
+async function planModelFallback(settings, model, response, allowFallback) {
+  const status = response?.status;
+  if (status !== 429 && status !== 404) return null;
+  await YTD_MODELS.markUnavailable(
+    settings,
+    model,
+    status === 429 ? "rate-limited" : "unavailable",
+    retryAfterSeconds(response),
+  );
+  if (!allowFallback) return null;
+  // Exclude the model that just failed: for a provider without a router alias,
+  // "auto" would otherwise resolve straight back to it.
+  const autoModel = await resolveAutoModel(settings, new Set([model]));
+  if (!autoModel) return null;
+  return { model: autoModel, tokenScale: 1, allowFallback: false };
+}
+
+async function requestAiCompletionWith(
+  settings,
+  { messages, maxTokens, temperature, responseFormat },
+  { model, tokenScale, allowFallback },
+) {
   const body = {
-    model: settings.aiModel,
-    max_tokens: maxTokens,
+    model,
+    max_tokens: Math.round(maxTokens * tokenScale),
     messages,
   };
   if (typeof temperature === "number") body.temperature = temperature;
   if (responseFormat) {
     body.response_format = responseFormat;
   }
-  // Product features need bounded, predictable latency rather than reasoning traces.
-  body.thinking = { type: "disabled" };
+  // No thinking/reasoning field is sent on purpose: Kilo rejects
+  // `reasoning: {enabled: false}` with 400 ("Reasoning is mandatory for this
+  // endpoint"), and the free models reason by default. An empty answer caused by
+  // reasoning burn is handled by the tokenScale retry below.
 
   const controller = new AbortController();
   let timeoutKind = "";
@@ -121,29 +197,41 @@ async function requestAiCompletion({
   );
   resetIdleTimeout();
   try {
-    const response = await fetch(
-      YTD_SETTINGS.chatCompletionsUrl(),
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${settings.aiApiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
+    const response = await fetch(YTD_SETTINGS.chatCompletionsUrl(settings), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...YTD_SETTINGS.authHeaders(settings),
       },
-    );
-    // Receiving headers proves DeepSeek is still making progress. DeepSeek
-    // may then send blank-line body chunks while a non-streaming request queues.
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    // Receiving headers proves the provider is still making progress. Some
+    // gateways then send blank-line body chunks while a queued request waits.
     resetIdleTimeout();
 
     const data = await readBoundedAiResponse(response, resetIdleTimeout);
     if (!response.ok) {
+      const fallback = await planModelFallback(
+        settings,
+        model,
+        response,
+        allowFallback,
+      );
+      if (fallback) {
+        clearTimeout(idleTimeoutId);
+        clearTimeout(hardTimeoutId);
+        return requestAiCompletionWith(
+          settings,
+          { messages, maxTokens, temperature, responseFormat },
+          fallback,
+        );
+      }
       const errorData = data && typeof data === "object" ? data : {};
       const error = new Error(
         errorData.error?.message ||
           errorData.message ||
-          `DeepSeek error: ${response.status}`,
+          `${YTD_SETTINGS.getProvider(settings).label} error: ${response.status}`,
       );
       error.status = response.status;
       throw error;
@@ -151,7 +239,22 @@ async function requestAiCompletion({
 
     const text = data.choices?.[0]?.message?.content;
     if (typeof text !== "string" || !text.trim()) {
-      const error = new Error("DeepSeek returned an empty response.");
+      // Free models reason first. With a tight max_tokens the budget can be
+      // spent entirely on reasoning_tokens and the answer comes back empty.
+      const reasoningTokens =
+        Number(data.usage?.completion_tokens_details?.reasoning_tokens) || 0;
+      if (reasoningTokens > 0 && tokenScale < 4) {
+        clearTimeout(idleTimeoutId);
+        clearTimeout(hardTimeoutId);
+        return requestAiCompletionWith(
+          settings,
+          { messages, maxTokens, temperature, responseFormat },
+          { model, tokenScale: tokenScale * 2, allowFallback },
+        );
+      }
+      const error = new Error(
+        "The model returned an empty response. Try another free model in Settings.",
+      );
       error.code = "EMPTY_AI_RESPONSE";
       throw error;
     }
@@ -160,14 +263,14 @@ async function requestAiCompletion({
   } catch (error) {
     if (timeoutKind === "idle") {
       const timeoutError = new Error(
-        "DeepSeek request was inactive for 50 seconds. Please Retry.",
+        "The AI request was inactive for 50 seconds. Please Retry.",
       );
       timeoutError.code = "AI_IDLE_TIMEOUT";
       throw timeoutError;
     }
     if (timeoutKind === "hard") {
       const timeoutError = new Error(
-        "DeepSeek request exceeded the 120-second limit. Please Retry.",
+        "The AI request exceeded the 120-second limit. Please Retry.",
       );
       timeoutError.code = "AI_HARD_TIMEOUT";
       throw timeoutError;
@@ -194,7 +297,7 @@ async function readBoundedAiResponse(response, onActivity) {
       responseBytes += byteLength;
       if (responseBytes > AI_PROVIDER_MAX_RESPONSE_BYTES) {
         await reader.cancel?.().catch(() => {});
-        const error = new Error("DeepSeek response exceeded the 2 MiB limit.");
+        const error = new Error("The AI response exceeded the 2 MiB limit.");
         error.code = "AI_RESPONSE_TOO_LARGE";
         throw error;
       }
@@ -211,7 +314,7 @@ async function readBoundedAiResponse(response, onActivity) {
     onActivity();
     const byteLength = new TextEncoder().encode(responseText).byteLength;
     if (byteLength > AI_PROVIDER_MAX_RESPONSE_BYTES) {
-      const error = new Error("DeepSeek response exceeded the 2 MiB limit.");
+      const error = new Error("The AI response exceeded the 2 MiB limit.");
       error.code = "AI_RESPONSE_TOO_LARGE";
       throw error;
     }
@@ -438,7 +541,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((settings) =>
         sendResponse({
           hasSupadataKey: !!settings.supadataApiKey,
-          hasAiKey: !!settings.aiApiKey,
+          hasAiKey: YTD_SETTINGS.hasAiCredentials(settings),
         }),
       )
       .catch((error) => sendResponse({ error: error.message }));
@@ -917,11 +1020,11 @@ async function handleAnalyzeTranscript(
 ) {
   try {
     const settings = await getSettings();
-    if (!settings.aiApiKey) {
+    if (!YTD_SETTINGS.hasAiCredentials(settings)) {
       return {
         success: false,
         error: "NO_AI_KEY",
-        message: "DeepSeek API key not configured. Open YouTube Digest Settings.",
+        message: "AI provider is not configured. Open YouTube Digest Settings.",
       };
     }
 
@@ -1326,7 +1429,7 @@ async function cleanupNoteText(
   videoTitle,
 ) {
   const settings = await getSettings();
-  if (!settings.aiApiKey) {
+  if (!YTD_SETTINGS.hasAiCredentials(settings)) {
     return [beforeText, targetText, afterText].filter(Boolean).join(" ");
   }
 
@@ -1449,11 +1552,11 @@ async function handleExplainSelection(
 ) {
   try {
     const settings = await getSettings();
-    if (!settings.aiApiKey) {
+    if (!YTD_SETTINGS.hasAiCredentials(settings)) {
       return {
         success: false,
         error: "NO_AI_KEY",
-        message: "DeepSeek API key not configured.",
+        message: "AI provider is not configured.",
       };
     }
 
@@ -1620,8 +1723,8 @@ async function handleTranslateContent(
     }
 
     const settings = await getSettings();
-    if (!settings.aiApiKey) {
-      return { success: false, error: "DeepSeek API key not configured" };
+    if (!YTD_SETTINGS.hasAiCredentials(settings)) {
+      return { success: false, error: "AI provider is not configured" };
     }
 
     const sourceSegments = validateTranscriptBatchRequest(content);

@@ -5,7 +5,12 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
-const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+// Normalise line endings: git checks these files out with CRLF on Windows, and
+// the assertions below are written for LF.
+const read = (file) =>
+  fs
+    .readFileSync(path.join(root, file), "utf8")
+    .replace(/\r\n/g, "\n");
 
 function loadSidepanelHelpers({
   sendMessage = () => Promise.resolve({}),
@@ -72,10 +77,9 @@ function loadSidepanelHelpers({
 
 function loadBackgroundHelpers({
   settings = {
-    provider: "deepseek",
+    provider: "openrouter",
+    aiModel: "auto",
     aiApiKey: "test-key",
-    aiBaseUrl: "https://api.deepseek.com",
-    aiModel: "deepseek-v4-flash",
   },
   fetchImpl = fetch,
   setTimeoutImpl = () => 0,
@@ -136,6 +140,10 @@ function loadBackgroundHelpers({
     },
   };
   sandbox.globalThis = sandbox;
+  // background.js pulls these in with importScripts, which the sandbox stubs.
+  // Run the real files so the provider registry and model helpers are present.
+  vm.runInNewContext(read("settings.js"), sandbox);
+  vm.runInNewContext(read("models.js"), sandbox);
   vm.runInNewContext(read("background.js"), sandbox);
   return sandbox.__YTD_TRANSLATION_TESTING__;
 }
@@ -480,7 +488,7 @@ test("background rejects unsupported language fallthrough and malformed batches"
   );
 });
 
-test("all AI product requests use DeepSeek non-thinking and JSON behavior", async () => {
+test("all AI product requests carry JSON mode and no provider-specific thinking field", async () => {
   const deepSeekRequests = [];
   const successfulFetch = (requests) => async (_url, options) => {
     requests.push(JSON.parse(options.body));
@@ -501,7 +509,11 @@ test("all AI product requests use DeepSeek non-thinking and JSON behavior", asyn
     messages: [{ role: "user", content: "Hello." }],
   });
   assert.equal(deepSeekResult.text, "translated");
-  assert.deepEqual(deepSeekRequests[0].thinking, { type: "disabled" });
+  // Kilo rejects `reasoning: {enabled: false}` with 400 and DeepSeek's
+  // `thinking` field is not understood by OpenRouter, so neither is sent.
+  assert.equal("thinking" in deepSeekRequests[0], false);
+  assert.equal("reasoning" in deepSeekRequests[0], false);
+  assert.equal(deepSeekRequests[0].model, "openrouter/free");
   assert.deepEqual(deepSeekRequests[0].response_format, {
     type: "json_object",
   });

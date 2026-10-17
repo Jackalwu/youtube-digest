@@ -34,7 +34,7 @@ YouTube Digest 是一个需要自行提供 API Key 的开源项目，通过 GitH
 你的 Agent 应该帮你：
 
 1. 先询问你想把项目长期保存在哪里，再下载或克隆到那里，并告诉你准确的完整路径。如果你需要建议，可以推荐 macOS 或 Linux 上的 `~/Documents/youtube-digest`，或 Windows 上的 `%USERPROFILE%\Documents\youtube-digest`。
-2. 打开下方 Supadata 和 DeepSeek 官方页面，指导你创建自己的账号。
+2. 打开下方 Supadata 和 OpenRouter 官方页面，指导你创建自己的账号。
 3. 指导你在 Chrome 中通过“加载已解压的扩展程序”选择你刚才确定的那个准确项目文件夹。
 4. 告诉你应该在扩展的“设置”页面哪个位置填写 API Key。
 5. 打开一个带字幕的 YouTube 视频，确认字幕和翻译功能可以使用。
@@ -63,7 +63,7 @@ YouTube Digest 是一个需要自行提供 API Key 的开源项目，通过 GitH
 YouTube Digest 需要你在自己的服务账号中准备两个 Key：
 
 1. **Supadata API Key**，用于获取 YouTube 字幕。
-2. **DeepSeek API Key**，用于生成概览、讲解内容、翻译和自动润色笔记。
+2. 一个 **AI 服务**，用于生成概览、讲解内容、翻译和自动润色笔记：OpenRouter（需要密钥）、本地 Hermes 代理（不需要密钥）或 Kilo Gateway（密钥可选）。
 
 ### 获取 Supadata API Key
 
@@ -75,27 +75,46 @@ YouTube Digest 需要你在自己的服务账号中准备两个 Key：
 
 如果页面流程发生变化，请查看 [Supadata 官方文档](https://docs.supadata.ai/)。
 
-### 获取 DeepSeek API Key
+### 获取 OpenRouter API Key
 
-1. 打开 DeepSeek 官方 [API Keys 页面](https://platform.deepseek.com/api_keys)。
-2. 按照提示登录，或创建 DeepSeek 开放平台账号。
-3. 点击 **Create new API key**，填写容易识别的名称，例如 `YouTube Digest`，然后创建 Key。
+1. 打开 OpenRouter 官方 [API Keys 页面](https://openrouter.ai/api_keys)。
+2. 按照提示登录，或创建 OpenRouter 账号。
+3. 点击 **Create key**，填写容易识别的名称，例如 `YouTube Digest`，然后创建 Key。
 4. 立即复制 Key。完整 Key 可能只会显示一次。
-5. 把 Key 粘贴到 YouTube Digest 设置中的 **DeepSeek API key**。
-6. 如果 DeepSeek 提示余额不足，请在 DeepSeek 开放平台账号中充值后再试。
+5. 把 Key 粘贴到 YouTube Digest 设置中的 **OpenRouter API 密钥**。
+6. 如果 OpenRouter 提示限流，等限流窗口重置后再试。
 
-当前账号和接口说明请查看 [DeepSeek 官方 API 文档](https://api-docs.deepseek.com/)。
+当前账号和接口说明请查看 [OpenRouter 文档](https://openrouter.ai/docs)。
 
 在侧边栏中打开 **Settings**。你也可以在 `chrome://extensions` 的 YouTube Digest 卡片中打开扩展选项。Key 只能粘贴到这些设置输入框中。不要把 Key 发送到 AI 对话、项目文件、截图或公开消息中。
 
-发布版本只支持 DeepSeek V4 Flash：
+发布版本支持三个 AI 服务，并且只列出它们的免费模型：
 
-```text
-Base URL: https://api.deepseek.com
-Model: deepseek-v4-flash
+| 服务 | 密钥 | 提供什么 |
+| --- | --- | --- |
+| **OpenRouter** | 必需 | `openrouter/free`，在 OpenRouter 当前提供的免费模型之间路由 |
+| **Hermes 代理（Nous Portal）** | 不需要 | 本地 `hermes proxy` 暴露的免费模型，凭证由代理持有 |
+| **Kilo Gateway** | 可选 | `kilo-auto/free` 以及 Kilo 的免费阵容，目前匿名请求可用 |
+
+设置页会读取每个服务的模型列表，只保留价格为 0 的模型，并剔除无法输出文本的条目（音乐生成模型不能当翻译用）。列表每十分钟、打开设置页时、以及点击 **刷新** 时更新。
+
+选择 **自动** 会使用该服务自己的路由，也可以指定某个免费模型。当某个模型返回 `429`（限流）或 `404`（已下线）时，设置页会标注它，请求会自动换用其他免费模型，而不是直接失败。
+
+`openrouter/free` 按 token 计费为零，因为 OpenRouter 会把请求路由到它当前的某个免费模型，所以这个名字背后的具体模型会变化。接口地址和模型列表固定在代码里，你只需要填写所选服务的密钥。如果想使用其他服务或模型，请在设置中复制安全的自定义 prompt，让编程 Agent 修改你自己的本地副本。不要把任何 API Key 放进 prompt 或对话。
+
+### 改用 Hermes 代理（不需要密钥）
+
+如果本机装了 Hermes Agent，它的本地代理会暴露你 Nous Portal 账号下的免费模型：
+
+```bash
+hermes proxy start
 ```
 
-YouTube Digest 会让所有 DeepSeek 请求使用非思考模式，以获得更快、更稳定的交互。设置中的接口地址和模型固定，只需要填写 DeepSeek API Key。如果想使用其他服务或模型，请在设置中复制安全的自定义 prompt，让编程 Agent 修改你自己的本地副本。不要把任何 API Key 放进 prompt 或对话。
+代理监听 `127.0.0.1:8645`，并自己附上 Portal 凭证，因此这个服务不需要填密钥。使用 AI 功能时请保持代理运行；没启动时扩展会报连接错误。
+
+### 改用 Kilo Gateway（密钥可选）
+
+Kilo 的免费模型目前不需要密钥就能调用。如果以后收紧，可以在 [app.kilo.ai/profile](https://app.kilo.ai/profile) 创建密钥并填入 **Kilo API 密钥**。
 
 API Key 和设置保存在你设备上的 Chrome 扩展本地存储中。发布包不会包含或使用 `config.js`。
 
@@ -116,7 +135,7 @@ API Key 和设置保存在你设备上的 Chrome 扩展本地存储中。发布�
 - 原文、简体中文和双语对照字幕。
 - AI 概览、选中文本讲解、翻译和自动润色笔记。
 - 本地笔记，以及最近字幕、概览和翻译的本地缓存。
-- 发布版本的所有 AI 功能都使用 DeepSeek V4 Flash。其他服务需要修改本地代码，不属于发布版本的支持范围。
+- 发布版本的所有 AI 功能都使用 OpenRouter、本地 Hermes 代理或 Kilo Gateway 的免费模型。其他服务需要修改本地代码。
 
 Shorts、直播、私密视频、受访问限制的视频，以及没有原生字幕的视频可能无法使用。目前没有测试 Firefox、Safari、移动浏览器或其他 Chromium 浏览器。
 
@@ -134,26 +153,13 @@ YouTube Digest 强制使用 Supadata 的 `mode=native`，不会在没有原生�
 
 按照当前只获取原生字幕的方式，如果每次请求都成功，免费版每月大约可以查询 100 个视频。重试和没有字幕的查询也会消耗额度，所以实际成功数量可能更少。
 
-DeepSeek 的额度与 Supadata 分开计算。YouTube Digest 不收款，也不转售 API 服务。建议为两个账号设置消费上限并定期查看用量。
+OpenRouter 的额度与 Supadata 分开计算。YouTube Digest 不收款，也不转售 API 服务。请查看 OpenRouter 当前的限额，并定期查看两个账号的用量。
 
-## DeepSeek V4 Flash 价格
+## 免费 AI 模型
 
-截至 2026 年 8 月 27 日，DeepSeek 官方[价格页面](https://api-docs.deepseek.com/quick_start/pricing/)列出的每 100 万 token 美元价格如下：
+列表里每个模型都由其服务商标价为 0，所以除字幕服务外，AI 功能不产生费用。免费阵容会随时变化，免费请求也有限流，所以某个模型可能今天失败、过一会儿又能用。设置页会标注刚返回 `429` 或 `404` 的模型，并自动换用其他免费模型。
 
-| Token 类型 | 非高峰 | 高峰 |
-| --- | ---: | ---: |
-| 缓存命中输入 | $0.007 | $0.014 |
-| 缓存未命中输入 | $0.22 | $0.44 |
-| 输出 | $0.66 | $1.32 |
-
-高峰时段为周一至周五 UTC 01:00–04:00 和 06:00–10:00，其他时间使用非高峰价格。
-
-一个实测的 20 分钟英文视频使用约 **32,600 个输入 token**，并在 43 个小批次中产生约 **3,500 到 4,500 个输出 token**。按当前价格，完整翻译该视频的费用约为：
-
-- **非高峰：$0.003 到 $0.010 USD**。
-- **高峰：$0.005 到 $0.020 USD**。
-
-低值假设大部分重复输入命中 DeepSeek 缓存，高值假设输入未命中缓存。翻译按需执行并复用缓存，只翻译部分视频时费用会更低。使用前请查看官方页面确认最新价格。
+YouTube Digest 不收款，也不转售 API 服务。当前免费额度和可用模型请查看对应服务商的文档。
 
 ## 用编程 Agent 改造成自己的版本
 
@@ -178,11 +184,11 @@ YouTube Digest 使用原生 HTML、CSS 和 JavaScript，没有构建步骤，很
 YouTube Digest 会直接从扩展向服务商发送请求：
 
 1. 把标准化的 YouTube 视频地址发送给 Supadata，用于获取原生字幕。
-2. 当你使用 AI 功能时，把字幕和相关视频信息发送给 DeepSeek。
+2. 当你使用 AI 功能时，把字幕和相关视频信息发送给 OpenRouter。
 3. 翻译或讲解等功能只发送当前需要的内容，例如选中的文本和上下文，或少量字幕分段。
 4. API Key、设置、笔记和最近缓存保存在 Chrome 本地。
 
-YouTube Digest 没有账号系统、广告、分析统计或行为追踪。Supadata 和 DeepSeek 仍会按照各自的条款和隐私政策处理数据。详情请查看 [PRIVACY.md](PRIVACY.md)。
+YouTube Digest 没有账号系统、广告、分析统计或行为追踪。Supadata 和 OpenRouter 仍会按照各自的条款和隐私政策处理数据。详情请查看 [PRIVACY.md](PRIVACY.md)。
 
 ## 常见问题
 
@@ -203,9 +209,9 @@ YouTube Digest 没有账号系统、广告、分析统计或行为追踪。Supad
 
 ### YouTube Digest 提示需要设置
 
-- 打开 **Settings**，保存 Supadata Key 和 DeepSeek Key。
-- 发布版本固定使用 DeepSeek V4 Flash，没有需要填写的 Base URL 或 Model 字段。
-- 如果设置提示旧的自定义服务已移除，请重新填写 DeepSeek Key。旧 AI Key 已安全清除，避免被错误用于 DeepSeek。
+- 打开 **Settings**，保存 Supadata Key 和 OpenRouter Key。
+- 发布版本固定使用 OpenRouter 接口和 `openrouter/free` 模型，没有需要填写的 Base URL 或 Model 字段。
+- 如果设置提示旧的自定义服务已移除，请重新填写 OpenRouter Key。旧 AI Key 已安全清除，避免被错误用于新服务。
 
 ### 找不到字幕
 
@@ -217,9 +223,9 @@ YouTube Digest 不会自动改用 AI 生成字幕。
 
 ### AI 请求失败
 
-- `401` 或 `403` 通常表示 DeepSeek Key 或账号权限有问题。
-- `429` 通常表示达到了 DeepSeek 服务限速或消费上限。
-- 确认 Key 来自上方链接的 DeepSeek 开放平台账号，并且账号有可用额度。
+- `401` 或 `403` 通常表示服务商密钥无效或已被撤销。走 Hermes 代理时，`401` 表示 `hermes proxy start` 没在运行，或 Portal 登录已过期。
+- `429` 通常表示触发了免费额度限流，等限流窗口重置后再试。
+- 确认密钥来自设置页所选服务对应的账号。
 - 如果你把本地副本改成了其他模型，请再次使用设置中的自定义 prompt，让编程 Agent 检查本地实现。
 
 不要在对话、截图或日志中分享 API Key、私密字幕或个人笔记。

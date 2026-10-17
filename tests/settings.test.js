@@ -3,24 +3,92 @@ const assert = require("node:assert/strict");
 
 const settings = require("../settings.js");
 
-test("DeepSeek defaults use V4 Flash", () => {
+test("defaults point at OpenRouter with the auto model", () => {
   const normalized = settings.normalize({
     provider: "unexpected",
     aiApiKey: "  example-key  ",
     aiBaseUrl: "https://api.example.com/v1",
-    aiModel: "example-model",
+    aiModel: "",
     supadataApiKey: "  example-supadata  ",
   });
 
-  assert.equal(normalized.provider, "deepseek");
-  assert.equal(normalized.aiBaseUrl, "https://api.deepseek.com");
-  assert.equal(normalized.aiModel, "deepseek-v4-flash");
+  assert.equal(normalized.provider, "openrouter");
+  assert.equal(normalized.aiModel, "auto");
   assert.equal(normalized.aiApiKey, "example-key");
   assert.equal(normalized.supadataApiKey, "example-supadata");
+  // A stale base URL in storage must not survive: the registry owns endpoints.
+  assert.equal(Object.hasOwn(normalized, "aiBaseUrl"), false);
+});
+
+test("every provider exposes a model list and chat endpoint", () => {
+  for (const id of settings.PROVIDER_IDS) {
+    const normalized = settings.normalize({ provider: id });
+    assert.equal(normalized.provider, id);
+    assert.match(settings.modelsUrl(normalized), /\/models$/);
+    assert.match(settings.chatCompletionsUrl(normalized), /\/chat\/completions$/);
+  }
+  assert.equal(settings.PROVIDER_IDS.length, 3);
+});
+
+test("auto resolves to each provider's own router alias", () => {
   assert.equal(
-    settings.chatCompletionsUrl(),
-    "https://api.deepseek.com/chat/completions",
+    settings.resolveModel(settings.normalize({ provider: "openrouter" })),
+    "openrouter/free",
   );
+  assert.equal(
+    settings.resolveModel(settings.normalize({ provider: "kilo" })),
+    "kilo-auto/free",
+  );
+  // Hermes has no router alias; the caller picks the first free model.
+  assert.equal(
+    settings.resolveModel(settings.normalize({ provider: "hermes" })),
+    settings.AUTO_MODEL,
+  );
+  assert.equal(
+    settings.resolveModel(
+      settings.normalize({ provider: "kilo", aiModel: "liquid/lfm-2.5-2.6b:free" }),
+    ),
+    "liquid/lfm-2.5-2.6b:free",
+  );
+});
+
+test("only OpenRouter requires a key", () => {
+  assert.equal(
+    settings.hasAiCredentials(settings.normalize({ provider: "openrouter" })),
+    false,
+  );
+  assert.equal(
+    settings.hasAiCredentials(
+      settings.normalize({ provider: "openrouter", aiApiKey: "k" }),
+    ),
+    true,
+  );
+  assert.equal(
+    settings.hasAiCredentials(settings.normalize({ provider: "hermes" })),
+    true,
+  );
+  assert.equal(
+    settings.hasAiCredentials(settings.normalize({ provider: "kilo" })),
+    true,
+  );
+});
+
+test("auth headers follow the provider's auth mode", () => {
+  const openrouter = settings.normalize({ provider: "openrouter", aiApiKey: "or" });
+  assert.deepEqual(settings.authHeaders(openrouter), {
+    Authorization: "Bearer or",
+  });
+
+  const kiloAnon = settings.normalize({ provider: "kilo" });
+  assert.deepEqual(settings.authHeaders(kiloAnon), {});
+  const kiloKey = settings.normalize({ provider: "kilo", kiloApiKey: "kl" });
+  assert.deepEqual(settings.authHeaders(kiloKey), {
+    Authorization: "Bearer kl",
+  });
+
+  // The proxy replaces any bearer with the real OAuth credential.
+  const hermes = settings.normalize({ provider: "hermes" });
+  assert.match(settings.authHeaders(hermes).Authorization, /^Bearer /);
 });
 
 test("legacy custom migration clears only the AI key and is idempotent", () => {
@@ -34,8 +102,7 @@ test("legacy custom migration clears only the AI key and is idempotent", () => {
   const first = settings.migrateLegacyCustom(legacy);
 
   assert.equal(first.migrated, true);
-  assert.equal(first.settings.provider, "deepseek");
-  assert.equal(first.settings.aiBaseUrl, settings.DEFAULTS.aiBaseUrl);
+  assert.equal(first.settings.provider, "openrouter");
   assert.equal(first.settings.aiModel, settings.DEFAULTS.aiModel);
   assert.equal(first.settings.aiApiKey, "");
   assert.equal(first.settings.supadataApiKey, "supadata-secret");
@@ -44,11 +111,11 @@ test("legacy custom migration clears only the AI key and is idempotent", () => {
   assert.equal(second.migrated, false);
   assert.deepEqual(second.settings, first.settings);
 
-  const configuredDeepSeek = settings.normalize({
+  const configured = settings.normalize({
     ...first.settings,
-    aiApiKey: "new-deepseek-key",
+    aiApiKey: "new-key",
   });
-  assert.equal(configuredDeepSeek.aiApiKey, "new-deepseek-key");
+  assert.equal(configured.aiApiKey, "new-key");
 });
 
 test("Supadata receives a canonical YouTube URL", () => {

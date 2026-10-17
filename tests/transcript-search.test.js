@@ -5,7 +5,12 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
-const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+// Normalise line endings: git checks these files out with CRLF on Windows, and
+// the assertions below are written for LF.
+const read = (file) =>
+  fs
+    .readFileSync(path.join(root, file), "utf8")
+    .replace(/\r\n/g, "\n");
 
 function loadSearchHelper() {
   const listeners = { addListener() {} };
